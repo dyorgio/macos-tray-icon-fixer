@@ -28,6 +28,8 @@ import java.awt.AWTException;
 import java.awt.Image;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.IOException;
 import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
@@ -51,7 +53,12 @@ public class BasicUsage {
         Image whiteImage = ImageIO.read(BasicUsage.class.getResource("/mactray-white22@2x.png"));
 
         TrayIcon icon = new TrayIcon(MacOSTrayIconFixer.getInitialIcon(blackImage, whiteImage), "Teste");
-        icon.addActionListener((e) -> System.out.println("examples.BasicUsage.main():" + SwingUtilities.isEventDispatchThread()));
+        icon.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("examples.BasicUsage.main():" + SwingUtilities.isEventDispatchThread());
+            }
+        });
         SystemTray.getSystemTray().add(icon);
 
         MacOSTrayIconFixer.fix(icon, blackImage, whiteImage, false, 0);
