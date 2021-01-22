@@ -66,7 +66,7 @@ public final class MacOSTrayIconFixer {
 
     public static void fix(final TrayIcon icon, Image blackImage, Image whiteImage, boolean needsMenu, int length) {
         if(isImageTemplateSupportedJdk()) {
-            log.log(Level.INFO, "JDK has support for native icons, skipping fix");
+            log.log(Level.INFO, "JDK has support for template icons, skipping fix");
             return;
         }
         // Check if icon has a menu
