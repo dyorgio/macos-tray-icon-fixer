@@ -39,6 +39,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.SwingUtilities;
 
 /**
@@ -47,6 +49,7 @@ import javax.swing.SwingUtilities;
  */
 public final class MacOSTrayIconFixer {
 
+    private static final Logger log = Logger.getLogger(MacOSTrayIconFixer.class.getName());
     private static final String OS_VERSION = new NSString(NSDictionary.dictionaryWithContentsOfFile(new NSString("/System/Library/CoreServices/SystemVersion.plist"))//
             .objectForKey(new NSString("ProductVersion")).getId()).toString();
 
@@ -61,15 +64,18 @@ public final class MacOSTrayIconFixer {
         fix(icon, blackImage, whiteImage, true, 0);
     }
 
-    public static void fix(final TrayIcon icon, Image blackImage, Image whiteImage, boolean needsMenu, int lenght) {
-
+    public static void fix(final TrayIcon icon, Image blackImage, Image whiteImage, boolean needsMenu, int length) {
+        if(isImageTemplateSupportedJdk()) {
+            log.log(Level.INFO, "JDK has support for template icons, skipping fix");
+            return;
+        }
         // Check if icon has a menu
         if (needsMenu && icon.getPopupMenu() == null) {
-            throw new IllegalStateException("PopupMenu needs to be setted on TrayIcon before fix it.");
+            throw new IllegalStateException("PopupMenu needs to be set on TrayIcon first");
         }
-        // Check if icon is on systemtray
+        // Check if icon is on SystemTray
         if (!Arrays.asList(SystemTray.getSystemTray().getTrayIcons()).contains(icon)) {
-            throw new IllegalStateException("TrayIcon needs to be added on SystemTray before fix it.");
+            throw new IllegalStateException("TrayIcon needs to be added on SystemTray first");
         }
 
         try {
@@ -130,6 +136,25 @@ public final class MacOSTrayIconFixer {
 
     public static boolean isImageTemplateSupported() {
         return OS_VERSION.compareTo("10.5") >= 0;
+    }
+
+    /**
+     * JDK-8252015 added native support for template images
+     */
+    public static boolean isImageTemplateSupportedJdk() {
+        try {
+            // before JDK-8252015: setNativeImage(long, long, boolean)
+            // after  JDK-8252015: setNativeImage(long, long, boolean, boolean)
+            Class.forName("sun.lwawt.macosx.CTrayIcon").getDeclaredMethod("setNativeImage", long.class, long.class, boolean.class, boolean.class);
+            // JDK will default to non-template behavior unless property is specified
+            if(Boolean.getBoolean(System.getProperty("apple.awt.enableTemplateImages"))) {
+                return true;
+            } else {
+                log.warning("JDK has support for native icons, use \"apple.awt.enableTemplateImages\" instead.");
+            }
+        } catch(ClassNotFoundException ignore) {
+        } catch(NoSuchMethodException ignore) {}
+        return false;
     }
 
     public static boolean isDarkTheme() {
