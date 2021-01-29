@@ -144,11 +144,11 @@ public final class MacOSTrayIconFixer {
     }
 
     public static boolean isImageTemplateSupported() {
-        return OS_VERSION.compareTo("10.5") >= 0;
+        return compareOsVersionTo("10.5") >= 0;
     }
 
     public static boolean isStatusItemButtonSupported() {
-        return OS_VERSION.compareTo("10.10") >= 0;
+        return compareOsVersionTo("10.10") >= 0;
     }
 
     /**
@@ -173,5 +173,48 @@ public final class MacOSTrayIconFixer {
 
     public static boolean isDarkTheme() {
         return "Dark".equals(NSUserDefaults.standard().stringForKey(new NSString("AppleInterfaceStyle")).toString());
+    }
+
+
+    /**
+     * Crude major.minor version comparator
+     */
+    private static int compareOsVersionTo(String compare) {
+        int[] OS_VERSION_SPLIT = new int[2];
+        int[] COMPARE_VERSION_SPLIT = new int[2];
+
+        int counter = 0;
+        for(String s : OS_VERSION.split("\\.")) {
+            try {
+                if(counter < 2) {
+                    OS_VERSION_SPLIT[counter++] = Integer.parseInt(s);
+                } else {
+                    break;
+                }
+            } catch(NumberFormatException ignore) {
+                OS_VERSION_SPLIT[counter++] = -1;
+            }
+        }
+
+        counter = 0;
+        for(String s : compare.split("\\.")) {
+            try {
+                if(counter < 2) {
+                    COMPARE_VERSION_SPLIT[counter++] = Integer.parseInt(s);
+                } else {
+                    break;
+                }
+            } catch(NumberFormatException ignore) {
+                COMPARE_VERSION_SPLIT[counter++] = -1;
+            }
+        }
+
+
+        int compareTo = OS_VERSION_SPLIT[0] - COMPARE_VERSION_SPLIT[0];
+        if(compareTo == 0) {
+            compareTo = OS_VERSION_SPLIT[1] - COMPARE_VERSION_SPLIT[1];
+        }
+        return compareTo;
+
     }
 }
