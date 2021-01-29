@@ -24,8 +24,10 @@
 package examples;
 
 import dyorgio.runtime.macos.trayicon.fixer.MacOSTrayIconFixer;
+import dyorgio.runtime.macos.trayicon.fixer.jna.appkit.AppKit;
 import java.awt.AWTException;
 import java.awt.Image;
+import java.awt.PopupMenu;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
@@ -53,14 +55,20 @@ public class BasicUsage {
         Image whiteImage = ImageIO.read(BasicUsage.class.getResource("/mactray-white22@2x.png"));
 
         TrayIcon icon = new TrayIcon(MacOSTrayIconFixer.getInitialIcon(blackImage, whiteImage), "Teste");
+        // You can have only one: Action
         icon.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("examples.BasicUsage.main():" + SwingUtilities.isEventDispatchThread());
             }
         });
+        // or PopupMenu
+        PopupMenu p = new PopupMenu("test");
+        p.add("child");
+        icon.setPopupMenu(p);
+
         SystemTray.getSystemTray().add(icon);
 
-        MacOSTrayIconFixer.fix(icon, blackImage, whiteImage, false, 0);
+        MacOSTrayIconFixer.fix(icon, blackImage, whiteImage, false, AppKit.NSSquareStatusItemLength);
     }
 }

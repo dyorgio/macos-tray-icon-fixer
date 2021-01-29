@@ -24,7 +24,7 @@
 package dyorgio.runtime.macos.trayicon.fixer;
 
 import com.sun.jna.NativeLong;
-import com.sun.jna.Pointer;
+import dyorgio.runtime.macos.trayicon.fixer.jna.appkit.AppKit;
 import dyorgio.runtime.macos.trayicon.fixer.jna.foundation.ActionCallback;
 import dyorgio.runtime.macos.trayicon.fixer.jna.foundation.Foundation;
 import dyorgio.runtime.macos.trayicon.fixer.jna.foundation.FoundationUtil;
@@ -61,13 +61,18 @@ public final class MacOSTrayIconFixer {
     }
 
     public static void fix(TrayIcon icon, Image blackImage, Image whiteImage) {
-        fix(icon, blackImage, whiteImage, true, 0);
+        fix(icon, blackImage, whiteImage, true, AppKit.NSSquareStatusItemLength);
     }
 
-    public static void fix(final TrayIcon icon, Image blackImage, Image whiteImage, boolean needsMenu, int length) {
-        if(isImageTemplateSupportedJdk()) {
+    @SuppressWarnings("UseSpecificCatch")
+    public static void fix(final TrayIcon icon, Image blackImage, Image whiteImage, boolean needsMenu, final float length) {
+        if (isImageTemplateSupportedJdk()) {
             log.log(Level.INFO, "JDK has support for template icons, skipping fix");
             return;
+        }
+        // Check length
+        if (length == 0) {
+            throw new IllegalArgumentException("Status item length cannot be zero");
         }
         // Check if icon has a menu
         if (needsMenu && icon.getPopupMenu() == null) {
@@ -86,47 +91,51 @@ public final class MacOSTrayIconFixer {
             field.setAccessible(true);
             long cTrayIconAddress = ptrField.getLong(field.get(icon));
 
-            long cPopupMenuAddressTmp = -1;
+            long cPopupMenuAddressTmp = 0;
             if (needsMenu || icon.getPopupMenu() != null) {
                 field = MenuComponent.class.getDeclaredField("peer");
                 field.setAccessible(true);
                 cPopupMenuAddressTmp = ptrField.getLong(field.get(icon.getPopupMenu()));
             }
-
             final long cPopupMenuAddress = cPopupMenuAddressTmp;
 
             final NativeLong statusItem = FoundationUtil.invoke(new NativeLong(cTrayIconAddress), "theItem");
-            NativeLong view = FoundationUtil.invoke(statusItem, "view");
-            final NativeLong image = Foundation.INSTANCE.object_getIvar(view, Foundation.INSTANCE.class_getInstanceVariable(FoundationUtil.invoke(view, "class"), "image"));
+            NativeLong awtView = FoundationUtil.invoke(statusItem, "view");
+            final NativeLong image = Foundation.INSTANCE.object_getIvar(awtView, Foundation.INSTANCE.class_getInstanceVariable(FoundationUtil.invoke(awtView, "class"), "image"));
+            FoundationUtil.invoke(image, "setTemplate:", true);
             FoundationUtil.runOnMainThreadAndWait(new Runnable() {
                 @Override
                 public void run() {
                     FoundationUtil.invoke(statusItem, "setView:", (Object) null);
-                    Pointer buttonSelector = Foundation.INSTANCE.sel_registerName("button");
-                    FoundationUtil.invoke(statusItem, buttonSelector, (Object) null);
-                    FoundationUtil.invoke(image, "setTemplate:", true);
-                    NativeLong button = FoundationUtil.invoke(statusItem, buttonSelector);
-                    FoundationUtil.invoke(button, "setImage:", image);
-                    FoundationUtil.invoke(statusItem, "setLength:", -2d);
-                    if (cPopupMenuAddress > 0) {
-                        FoundationUtil.invoke(statusItem, "setMenu:", FoundationUtil.invoke(new NativeLong(cPopupMenuAddress), "menu"));
+                    NativeLong target;
+                    if (isStatusItemButtonSupported()) {
+                        target = FoundationUtil.invoke(statusItem, "button");
+                    } else {
+                        target = statusItem;
                     }
-                    new ActionCallback(new Runnable() {
-                        @Override
-                        public void run() {
-                            final ActionListener[] listeners = icon.getActionListeners();
-                            final int now = (int) System.currentTimeMillis();
-                            for (int i = 0; i < listeners.length; i++) {
-                                final int iF = i;
-                                SwingUtilities.invokeLater(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        listeners[iF].actionPerformed(new ActionEvent(icon, now + iF, null));
-                                    }
-                                });
+                    FoundationUtil.invoke(target, "setImage:", image);
+                    FoundationUtil.invoke(statusItem, "setLength:", length);
+
+                    if (cPopupMenuAddress != 0) {
+                        FoundationUtil.invoke(statusItem, "setMenu:", FoundationUtil.invoke(new NativeLong(cPopupMenuAddress), "menu"));
+                    } else {
+                        new ActionCallback(new Runnable() {
+                            @Override
+                            public void run() {
+                                final ActionListener[] listeners = icon.getActionListeners();
+                                final int now = (int) System.currentTimeMillis();
+                                for (int i = 0; i < listeners.length; i++) {
+                                    final int iF = i;
+                                    SwingUtilities.invokeLater(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            listeners[iF].actionPerformed(new ActionEvent(icon, now + iF, null));
+                                        }
+                                    });
+                                }
                             }
-                        }
-                    }).installActionOnNSControl(button);
+                        }).installActionOnNSControl(target);
+                    }
                 }
             });
         } catch (Throwable t) {
@@ -138,6 +147,10 @@ public final class MacOSTrayIconFixer {
         return OS_VERSION.compareTo("10.5") >= 0;
     }
 
+    public static boolean isStatusItemButtonSupported() {
+        return OS_VERSION.compareTo("10.10") >= 0;
+    }
+
     /**
      * JDK-8252015 added native support for template images
      */
@@ -147,13 +160,14 @@ public final class MacOSTrayIconFixer {
             // after  JDK-8252015: setNativeImage(long, long, boolean, boolean)
             Class.forName("sun.lwawt.macosx.CTrayIcon").getDeclaredMethod("setNativeImage", long.class, long.class, boolean.class, boolean.class);
             // JDK will default to non-template behavior unless property is specified
-            if(Boolean.getBoolean(System.getProperty("apple.awt.enableTemplateImages"))) {
+            if (Boolean.getBoolean(System.getProperty("apple.awt.enableTemplateImages"))) {
                 return true;
             } else {
                 log.warning("JDK has support for native icons, use \"apple.awt.enableTemplateImages\" instead.");
             }
-        } catch(ClassNotFoundException ignore) {
-        } catch(NoSuchMethodException ignore) {}
+        } catch (ClassNotFoundException ignore) {
+        } catch (NoSuchMethodException ignore) {
+        }
         return false;
     }
 
