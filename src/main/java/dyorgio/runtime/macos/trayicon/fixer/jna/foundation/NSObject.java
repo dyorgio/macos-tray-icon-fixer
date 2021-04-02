@@ -39,6 +39,7 @@ public class NSObject {
     protected static final Pointer allocSel = Foundation.INSTANCE.sel_registerName("alloc");
     protected static final Pointer initSel = Foundation.INSTANCE.sel_registerName("init");
     protected static final Pointer releaseSel = Foundation.INSTANCE.sel_registerName("release");
+    protected static final Pointer retainSel = Foundation.INSTANCE.sel_registerName("retain");
     protected static final Pointer performSelectorOnMainThread$withObject$waitUntilDoneSel
             = Foundation.INSTANCE.sel_registerName("performSelectorOnMainThread:withObject:waitUntilDone:");
 
@@ -46,21 +47,25 @@ public class NSObject {
 
     public NSObject(NativeLong id) {
         this.id = id;
+        Foundation.INSTANCE.objc_msgSend(id, retainSel);
     }
 
     public final NativeLong getId() {
         return id;
     }
 
-    public void release() {
+    private void release() {
         Foundation.INSTANCE.objc_msgSend(id, releaseSel);
     }
 
     @Override
     @SuppressWarnings("FinalizeDeclaration")
     protected void finalize() throws Throwable {
-        release();
-        super.finalize();
+        try {
+            release();
+        } finally {
+            super.finalize();
+        }
     }
 
     public void performSelectorOnMainThread(Pointer selector, NativeLong object, boolean waitUntilDone) {
