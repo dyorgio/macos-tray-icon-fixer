@@ -29,7 +29,7 @@ package dyorgio.runtime.macos.trayicon.fixer.jna.appkit;
  */
 public class AppKit {
 
-    public static final float NSSquareStatusItemLength = -2;
-    public static final float NSVariableStatusItemLength = -1;
+    public static final double NSSquareStatusItemLength = -2;
+    public static final double NSVariableStatusItemLength = -1;
 
 }

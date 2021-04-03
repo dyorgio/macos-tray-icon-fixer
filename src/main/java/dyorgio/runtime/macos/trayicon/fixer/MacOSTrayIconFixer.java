@@ -65,7 +65,7 @@ public final class MacOSTrayIconFixer {
     }
 
     @SuppressWarnings("UseSpecificCatch")
-    public static void fix(final TrayIcon icon, Image blackImage, Image whiteImage, boolean needsMenu, final float length) {
+    public static void fix(final TrayIcon icon, Image blackImage, Image whiteImage, boolean needsMenu, final double length) {
         if (isImageTemplateSupportedJdk()) {
             log.log(Level.INFO, "JDK has support for template icons, skipping fix");
             return;
@@ -106,7 +106,7 @@ public final class MacOSTrayIconFixer {
             FoundationUtil.runOnMainThreadAndWait(new Runnable() {
                 @Override
                 public void run() {
-                    FoundationUtil.invoke(statusItem, "setView:", (Object) null);
+                    FoundationUtil.invoke(statusItem, "setView:", FoundationUtil.NULL);
                     NativeLong target;
                     if (isStatusItemButtonSupported()) {
                         target = FoundationUtil.invoke(statusItem, "button");
@@ -114,6 +114,7 @@ public final class MacOSTrayIconFixer {
                         target = statusItem;
                     }
                     FoundationUtil.invoke(target, "setImage:", image);
+
                     FoundationUtil.invoke(statusItem, "setLength:", length);
 
                     if (cPopupMenuAddress != 0) {
