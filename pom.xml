@@ -58,7 +58,7 @@
         <version.animal.sniffer.maven.plugin>1.16</version.animal.sniffer.maven.plugin>
         
         <version.jna>5.8.0</version.jna>
-        <version.byte-buddy>1.10.18</version.byte-buddy>
+        <version.byte-buddy>1.11.0</version.byte-buddy>
     </properties>
     
     <dependencies>
