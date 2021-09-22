@@ -70,6 +70,13 @@ public final class MacOSTrayIconFixer {
 
     @SuppressWarnings("UseSpecificCatch")
     public static void fix(final TrayIcon icon, Image blackImage, Image whiteImage, boolean needsMenu, final double length) {
+        Image initial = getInitialIcon(blackImage, whiteImage);
+            
+        if (!isImageTemplateSupported()){
+            icon.setImage(initial);
+            return;
+        }
+        
         if (isImageTemplateSupportedJdk()) {
             LOGGER.log(Level.INFO, "JDK has support for template icons, skipping fix");
             return;
@@ -150,6 +157,13 @@ public final class MacOSTrayIconFixer {
     }
 
     public static void updateImage(final TrayIcon icon, Image blackImage, Image whiteImage) {
+        Image initial = getInitialIcon(blackImage, whiteImage);
+            
+        if (!isImageTemplateSupported()){
+            icon.setImage(initial);
+            return;
+        }
+        
         if (isImageTemplateSupportedJdk()) {
             LOGGER.log(Level.INFO, "JDK has support for template icons, skipping fix");
             return;
@@ -169,7 +183,6 @@ public final class MacOSTrayIconFixer {
             Field ptrField = Class.forName("sun.lwawt.macosx.CFRetainedResource").getDeclaredField("ptr");
             ptrField.setAccessible(true);
 
-            Image initial = getInitialIcon(blackImage, whiteImage);
             Object imageObj = Class.forName("sun.lwawt.macosx.CImage$Creator").getDeclaredMethod("createFromImage", Image.class)
                     .invoke(Class.forName("sun.lwawt.macosx.CImage").getDeclaredMethod("getCreator").invoke(null), initial);
                         
