@@ -33,6 +33,8 @@ import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
+import java.util.Timer;
+import java.util.TimerTask;
 import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
 
@@ -70,5 +72,17 @@ public class BasicUsage {
         SystemTray.getSystemTray().add(icon);
 
         MacOSTrayIconFixer.fix(icon, blackImage, whiteImage, false, AppKit.NSSquareStatusItemLength);
+
+        Image blackPauseImage = ImageIO.read(BasicUsage.class.getResource("/mactray-pause22@2x.png"));
+        Image whitePauseImage = ImageIO.read(BasicUsage.class.getResource("/mactray-pause-white22@2x.png"));
+
+        new Timer().schedule(new TimerTask() {
+            @Override
+            public void run() {
+                SwingUtilities.invokeLater(() -> {
+                    MacOSTrayIconFixer.updateImage(icon, blackPauseImage, whitePauseImage);
+                });
+            }
+        }, 2000);
     }
 }

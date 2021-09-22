@@ -38,7 +38,9 @@ import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.WeakHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.SwingUtilities;
@@ -49,9 +51,11 @@ import javax.swing.SwingUtilities;
  */
 public final class MacOSTrayIconFixer {
 
-    private static final Logger log = Logger.getLogger(MacOSTrayIconFixer.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(MacOSTrayIconFixer.class.getName());
     private static final String OS_VERSION = new NSString(NSDictionary.dictionaryWithContentsOfFile(new NSString("/System/Library/CoreServices/SystemVersion.plist"))//
             .objectForKey(new NSString("ProductVersion")).getId()).toString();
+    
+    private static final WeakHashMap<TrayIcon, NativeLong> FIXED_TRAYICONS = new WeakHashMap();
 
     MacOSTrayIconFixer() {
     }
@@ -67,7 +71,7 @@ public final class MacOSTrayIconFixer {
     @SuppressWarnings("UseSpecificCatch")
     public static void fix(final TrayIcon icon, Image blackImage, Image whiteImage, boolean needsMenu, final double length) {
         if (isImageTemplateSupportedJdk()) {
-            log.log(Level.INFO, "JDK has support for template icons, skipping fix");
+            LOGGER.log(Level.INFO, "JDK has support for template icons, skipping fix");
             return;
         }
         // Check length
@@ -137,9 +141,52 @@ public final class MacOSTrayIconFixer {
                             }
                         }).installActionOnNSControl(target);
                     }
+                    FIXED_TRAYICONS.put(icon, target);
                 }
             });
-        } catch (Throwable t) {
+        } catch (Throwable ignore) {
+            // ignore all
+        }
+    }
+
+    public static void updateImage(final TrayIcon icon, Image blackImage, Image whiteImage) {
+        if (isImageTemplateSupportedJdk()) {
+            LOGGER.log(Level.INFO, "JDK has support for template icons, skipping fix");
+            return;
+        }
+        // Check if icon is on SystemTray
+        if (!Arrays.asList(SystemTray.getSystemTray().getTrayIcons()).contains(icon)) {
+            throw new IllegalStateException("TrayIcon needs to be added on SystemTray first");
+        }
+        
+        final NativeLong target = FIXED_TRAYICONS.get(icon);
+        // Check if icon was 'fixed'
+        if (target == null) {
+            throw new IllegalStateException("TrayIcon needs to be fixed first");
+        }
+        
+        try {
+            Field ptrField = Class.forName("sun.lwawt.macosx.CFRetainedResource").getDeclaredField("ptr");
+            ptrField.setAccessible(true);
+
+            Image initial = getInitialIcon(blackImage, whiteImage);
+            Object imageObj = Class.forName("sun.lwawt.macosx.CImage$Creator").getDeclaredMethod("createFromImage", Image.class)
+                    .invoke(Class.forName("sun.lwawt.macosx.CImage").getDeclaredMethod("getCreator").invoke(null), initial);
+                        
+            Method resizeMethod = Class.forName("sun.lwawt.macosx.CImage").getDeclaredMethod("resize", double.class, double.class);
+            resizeMethod.setAccessible(true);
+            resizeMethod.invoke(imageObj, 22d, 22d);
+            
+            final NativeLong image = new NativeLong(ptrField.getLong(imageObj));
+            
+            FoundationUtil.runOnMainThreadAndWait(new Runnable() {
+                @Override
+                public void run() {
+                    FoundationUtil.invoke(image, "setTemplate:", true);
+                    FoundationUtil.invoke(target, "setImage:", image);
+                }
+            });
+        } catch (Throwable ignore) {
             // ignore all
         }
     }
@@ -164,7 +211,7 @@ public final class MacOSTrayIconFixer {
             if (Boolean.getBoolean(System.getProperty("apple.awt.enableTemplateImages"))) {
                 return true;
             } else {
-                log.warning("JDK has support for native icons, use \"apple.awt.enableTemplateImages\" instead.");
+                LOGGER.warning("JDK has support for native icons, use \"apple.awt.enableTemplateImages\" instead.");
             }
         } catch (ClassNotFoundException ignore) {
         } catch (NoSuchMethodException ignore) {
@@ -176,7 +223,6 @@ public final class MacOSTrayIconFixer {
         return "Dark".equals(NSUserDefaults.standard().stringForKey(new NSString("AppleInterfaceStyle")).toString());
     }
 
-
     /**
      * Crude major.minor version comparator
      */
@@ -185,34 +231,33 @@ public final class MacOSTrayIconFixer {
         int[] COMPARE_VERSION_SPLIT = new int[2];
 
         int counter = 0;
-        for(String s : OS_VERSION.split("\\.")) {
+        for (String s : OS_VERSION.split("\\.")) {
             try {
-                if(counter < 2) {
+                if (counter < 2) {
                     OS_VERSION_SPLIT[counter++] = Integer.parseInt(s);
                 } else {
                     break;
                 }
-            } catch(NumberFormatException ignore) {
+            } catch (NumberFormatException ignore) {
                 OS_VERSION_SPLIT[counter++] = -1;
             }
         }
 
         counter = 0;
-        for(String s : compare.split("\\.")) {
+        for (String s : compare.split("\\.")) {
             try {
-                if(counter < 2) {
+                if (counter < 2) {
                     COMPARE_VERSION_SPLIT[counter++] = Integer.parseInt(s);
                 } else {
                     break;
                 }
-            } catch(NumberFormatException ignore) {
+            } catch (NumberFormatException ignore) {
                 COMPARE_VERSION_SPLIT[counter++] = -1;
             }
         }
 
-
         int compareTo = OS_VERSION_SPLIT[0] - COMPARE_VERSION_SPLIT[0];
-        if(compareTo == 0) {
+        if (compareTo == 0) {
             compareTo = OS_VERSION_SPLIT[1] - COMPARE_VERSION_SPLIT[1];
         }
         return compareTo;
